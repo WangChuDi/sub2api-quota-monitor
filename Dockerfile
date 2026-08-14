@@ -2,10 +2,7 @@ FROM python:3.13-alpine
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    HTML_DIR=/app/html \
-    DATA_DIR=/app/data \
-    PORT=80
+    PYTHONDONTWRITEBYTECODE=1
 
 COPY app/server.py /app/server.py
 COPY app/html /app/html

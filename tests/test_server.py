@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -10,6 +11,18 @@ SPEC.loader.exec_module(about_server)
 
 
 class MonitorTests(unittest.TestCase):
+    def test_load_toml_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(
+                "[sub2api]\nbase_url = 'http://sub2api.internal'\n"
+                "main_account_id = '123'\n",
+                encoding="utf-8",
+            )
+            config = about_server._load_config(path)
+            self.assertEqual(config["sub2api"]["base_url"], "http://sub2api.internal")
+            self.assertEqual(config["sub2api"]["main_account_id"], "123")
+
     def test_source_url_uses_base_url(self):
         old = about_server.SUB2API_BASE_URL
         try:

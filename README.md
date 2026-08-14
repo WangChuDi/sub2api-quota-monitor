@@ -9,8 +9,8 @@ This is a standalone quota monitor for a New API/Sub2API deployment. It stores s
 ### Docker 快速开始
 
 ```sh
-cp .env.example .env
-# 编辑 .env；不要把它提交到 Git。
+cp config.example.toml config.toml
+# 编辑 config.toml；不要把它提交到 Git。
 docker login ghcr.io
 docker compose pull
 docker compose up -d
@@ -18,62 +18,60 @@ docker compose up -d
 
 Compose 使用已发布的镜像：`ghcr.io/wangchudi/newapi-about-monitor:latest`。仓库和镜像目前是私有的，拉取镜像需要具有 `read:packages` 权限的 GitHub PAT。页面默认地址为 `http://127.0.0.1:8320/`，历史数据库位于 `./data/history.db`。
 
-#### `.env` 配置
+#### `config.toml` 配置
 
-`cp .env.example .env` 后编辑 `.env`。Compose 会自动读取该文件，并把其中的变量传给容器；`.env` 不要提交到 Git。
+复制 `config.example.toml` 为 `config.toml` 后编辑。Compose 会把这个文件只读挂载到容器的 `/app/config.toml`；配置文件包含密钥，建议设置为仅运行用户可读，并且不要提交到 Git。
 
 必填变量：
 
-- `SUB2API_BASE_URL`：monitor 容器可访问的 Sub2API 基础地址。
-- `SUB2API_ADMIN_KEY`：Sub2API 管理员密钥。也可以改用 Docker secret 文件 `SUB2API_ADMIN_KEY_FILE`。
+- `[sub2api].base_url`：monitor 容器可访问的 Sub2API 基础地址。
+- `[sub2api].admin_key`：Sub2API 管理员密钥；也可以把密钥写入 `[sub2api].admin_key_file` 指向的 Docker secret 文件。
 
 常用选填变量：
 
-- `MAIN_ACCOUNT_ID`、`SPARK_ACCOUNT_ID`：账号 ID，默认分别为 `571`、`576`。
-- `BARK_ENABLED`：是否启用通知，默认 `false`。
-- `BARK_URL`：Bark 完整地址；仅当 `BARK_ENABLED=true` 且没有使用 `BARK_URL_FILE` 时必填。
-- `FRAME_ANCESTORS`：允许哪些网页来源嵌入 monitor 的 iframe，默认只允许同源的 `'self'`。
-- `QUOTA_URL`、`USAGE_URL`、`SPARK_QUOTA_URL`、`SPARK_USAGE_URL`：上游路由不是标准路径时使用的完整 URL 覆盖项。
-- `PORT`、采样间隔、快速采样阈值、请求超时和 `HISTORY_RETENTION_DAYS`：都有安全默认值，按需调整即可。
+- `[sub2api].main_account_id`、`[sub2api].spark_account_id`：账号 ID，默认分别为 `571`、`576`。
+- `[bark].enabled`：是否启用通知，默认 `false`。
+- `[bark].url`：Bark 完整地址；仅当启用通知且没有使用 `[bark].url_file` 时必填。
+- `[server].frame_ancestors`：允许哪些网页来源嵌入 monitor 的 iframe，默认只允许同源的 `'self'`。
+- `[sub2api].quota_url`、`usage_url`、`spark_quota_url`、`spark_usage_url`：上游路由不是标准路径时使用的完整 URL 覆盖项。
+- `[server]`、`[sampling]`、`[history]` 中的端口、采样间隔、阈值、超时和保留天数：都有安全默认值，按需调整即可。
 
-`FRAME_ANCESTORS` 不是上游地址。例如 monitor 被 `https://newapi.example.com` 的 About 页面嵌入时，设置 `FRAME_ANCESTORS=https://newapi.example.com`；多个来源用空格分隔。只允许实际的父页面来源，不要填 `*`。
+`frame_ancestors` 不是上游地址。例如 monitor 被 `https://newapi.example.com` 的 About 页面嵌入时，写成 `frame_ancestors = ["https://newapi.example.com"]`；多个来源写在同一个数组中。只允许实际的父页面来源，不要填 `*`。
 
 ### 内网 Sub2API
 
-可以使用内网地址。`SUB2API_BASE_URL` 是由 monitor 容器后端访问的，浏览器不会直接请求 Sub2API，因此用户浏览器只需要能打开 monitor 页面。
+可以使用内网地址。`[sub2api].base_url` 是由 monitor 容器后端访问的，浏览器不会直接请求 Sub2API，因此用户浏览器只需要能打开 monitor 页面。
 
 - Sub2API 在同一个 Docker 网络中：使用 Docker 服务名，例如 `http://sub2api:3000`，并让两个 Compose 项目加入同一个 external network。
 - Sub2API 在同一台 NAS 或局域网内：使用容器能够路由到的局域网 IP 或内网域名，例如 `http://192.168.x.x:port`。
 - 不要在容器中使用 `http://127.0.0.1:port` 指向宿主机；该地址表示 monitor 容器自身。只有 Sub2API 和 monitor 在同一个容器时才可这样使用。
 
-如果内网域名使用 HTTPS，自签名证书必须被容器信任；否则应使用受信任证书或可路由的 HTTP 内网地址。将页面嵌入 New API 时，还要把父页面来源加入 `FRAME_ANCESTORS`，并确保反向代理把 monitor 路径转发到本容器。
+如果内网域名使用 HTTPS，自签名证书必须被容器信任；否则应使用受信任证书或可路由的 HTTP 内网地址。将页面嵌入 New API 时，还要把父页面来源加入 `[server].frame_ancestors`，并确保反向代理把 monitor 路径转发到本容器。
 
 ### 二进制
 
-GitHub Actions 会构建 Linux、Windows 和 macOS 的单文件二进制。二进制会从可执行文件旁边的 `data` 目录读取/写入 SQLite，并将网页资源打包在程序内。程序通过操作系统的进程环境变量读取配置，不会自动解析旁边的 `.env` 文件。
+GitHub Actions 会构建 Linux、Windows 和 macOS 的单文件二进制。二进制会从可执行文件旁边的 `data` 目录读取/写入 SQLite，并将网页资源打包在程序内。程序默认读取可执行文件旁边的 `config.toml`，不会读取 `.env`。
 
-Linux/macOS 可以先加载 `.env` 再启动：
+Linux/macOS：
 
 ```sh
-set -a
-. ./.env
-set +a
+cp config.example.toml config.toml
+# 编辑 config.toml；独立运行时可将 [server].port 改为 8320。
 ./newapi-about-monitor
 ```
 
-Windows PowerShell 可以这样加载：
+Windows PowerShell：
 
 ```powershell
-Get-Content .env | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object {
-  $name, $value = $_ -split '=', 2
-  [Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), 'Process')
-}
+Copy-Item config.example.toml config.toml
+# 编辑 config.toml 后启动
 ./newapi-about-monitor.exe
 ```
 
-也可以直接在 systemd、Unraid、Windows 服务或其他 secret 管理器中注入同名环境变量。
+也可以通过 `CONFIG_FILE` 环境变量指定其他 TOML 路径，或由 systemd、Unraid、Windows 服务直接管理该配置文件。
 
 目标机器不需要安装 Python；构建使用 PyInstaller。
+每个 GitHub Release 还附带 `config.example.toml` 配置模板。
 
 ### GitHub Actions 与发布
 
@@ -81,7 +79,7 @@ Get-Content .env | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Ob
 - 同一个标签会创建 GitHub Release，附带二进制和 `SHA256SUMS`。
 - `workflow_dispatch` 可运行检查和构建，但不会创建 Release 或推送镜像。
 
-运行时凭据只放在目标主机的环境变量或 secret 管理器中，不放入 GitHub 源码。Actions 仅使用 `GITHUB_TOKEN` 发布镜像和 Release 资产。
+运行时凭据只放在目标主机的 `config.toml` 或 secret 管理器中，不放入 GitHub 源码。Actions 仅使用 `GITHUB_TOKEN` 发布镜像和 Release 资产。
 
 ### 采样策略
 
@@ -118,8 +116,8 @@ Get-Content .env | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Ob
 ### Quick start with Docker
 
 ```sh
-cp .env.example .env
-# Edit .env. Never commit it.
+cp config.example.toml config.toml
+# Edit config.toml. Never commit it.
 docker login ghcr.io
 docker compose pull
 docker compose up -d
@@ -127,50 +125,58 @@ docker compose up -d
 
 Compose uses the published image `ghcr.io/wangchudi/newapi-about-monitor:latest`. The repository and image are currently private, so pulling the image requires a GitHub PAT with `read:packages`. The page is available at `http://127.0.0.1:8320/`; persistent history is stored in `./data/history.db`.
 
-#### `.env` configuration
+#### `config.toml` configuration
 
-Run `cp .env.example .env` and edit the new file. Docker Compose automatically reads `.env` and passes the values into the container. Never commit this file.
+Copy `config.example.toml` to `config.toml` and edit it. Compose mounts this file read-only at `/app/config.toml`; it contains credentials, so keep it private and never commit it.
 
 Required variables:
 
-- `SUB2API_BASE_URL`: the Sub2API base URL reachable from the monitor container.
-- `SUB2API_ADMIN_KEY`: the Sub2API administrator key; alternatively use the Docker secret file configured by `SUB2API_ADMIN_KEY_FILE`.
+- `[sub2api].base_url`: the Sub2API base URL reachable from the monitor container.
+- `[sub2api].admin_key`: the Sub2API administrator key; alternatively use the Docker secret file configured by `[sub2api].admin_key_file`.
 
 Common optional variables:
 
-- `MAIN_ACCOUNT_ID` and `SPARK_ACCOUNT_ID`, defaulting to `571` and `576`.
-- `BARK_ENABLED`, defaulting to `false`.
-- `BARK_URL`, required only when Bark is enabled and `BARK_URL_FILE` is not used.
-- `FRAME_ANCESTORS`, defaulting to `'self'`, to control which web origins may embed the page in an iframe.
-- `QUOTA_URL`, `USAGE_URL`, `SPARK_QUOTA_URL`, and `SPARK_USAGE_URL` for non-standard upstream routes.
-- `PORT`, sampling intervals, fast-mode thresholds, timeouts, and `HISTORY_RETENTION_DAYS`, all of which have defaults.
+- `[sub2api].main_account_id` and `spark_account_id`, defaulting to `571` and `576`.
+- `[bark].enabled`, defaulting to `false`.
+- `[bark].url`, required only when Bark is enabled and `[bark].url_file` is not used.
+- `[server].frame_ancestors`, defaulting to `'self'`, to control which web origins may embed the page in an iframe.
+- The four `[sub2api]` URL overrides for non-standard upstream routes.
+- The `[server]`, `[sampling]`, and `[history]` settings, which all have defaults.
 
-`FRAME_ANCESTORS` is not an upstream URL. If New API embeds the page from `https://newapi.example.com`, set `FRAME_ANCESTORS=https://newapi.example.com`; separate multiple origins with spaces. Do not use `*`.
+`frame_ancestors` is not an upstream URL. If New API embeds the page from `https://newapi.example.com`, write `frame_ancestors = ["https://newapi.example.com"]`; put multiple origins in the same array. Do not use `*`.
 
 ### Using an internal Sub2API URL
 
-An internal URL works. The monitor backend inside the container contacts Sub2API; the browser does not contact Sub2API directly, so the browser only needs access to the monitor page.
+An internal URL works. `[sub2api].base_url` is contacted by the monitor backend inside the container; the browser does not contact Sub2API directly, so the browser only needs access to the monitor page.
 
 - If both services share a Docker network, use the service DNS name such as `http://sub2api:3000` and attach both Compose projects to the same external network.
 - If Sub2API is on the NAS or LAN, use a LAN IP or internal DNS name reachable from the container.
 - Do not use `http://127.0.0.1:port` for a host service from inside the monitor container; that points back to the monitor container itself.
 
-For internal HTTPS, the certificate must be trusted by the container. When embedding the page in New API, add the parent origin to `FRAME_ANCESTORS` and route the monitor path to this container through the reverse proxy.
+For internal HTTPS, the certificate must be trusted by the container. When embedding the page in New API, add the parent origin to `[server].frame_ancestors` and route the monitor path to this container through the reverse proxy.
 
 ### Binary, Actions, sampling, and slope model
 
-GitHub Actions builds one-file Linux, Windows, and macOS binaries with the same environment-variable configuration. The binary reads the operating system process environment and does not parse a neighboring `.env` file automatically.
+GitHub Actions builds one-file Linux, Windows, and macOS binaries with the same TOML configuration. The binary reads `config.toml` beside the executable and does not parse `.env` automatically.
 
-On Linux/macOS, load `.env` before starting it:
+On Linux/macOS:
 
 ```sh
-set -a
-. ./.env
-set +a
+cp config.example.toml config.toml
+# Edit config.toml; for a standalone process you may set [server].port to 8320.
 ./newapi-about-monitor
 ```
 
-On Windows PowerShell, load each non-comment line into the current process environment, then run `./newapi-about-monitor.exe`. The same variables can also be supplied by systemd, Unraid, Windows Services, or another secret manager.
+On Windows PowerShell:
+
+```powershell
+Copy-Item config.example.toml config.toml
+# Edit config.toml, then start the binary
+.\newapi-about-monitor.exe
+```
+
+`CONFIG_FILE` can point to an alternate TOML file when needed. systemd, Unraid, Windows Services, and other secret managers can also manage the file directly.
+Each GitHub Release also includes the `config.example.toml` configuration template.
 
 Tags matching `v*` also build and publish the multi-architecture image and create a Release with `SHA256SUMS`; `workflow_dispatch` runs checks and builds without publishing.
 

@@ -6,6 +6,7 @@ import sqlite3
 import sys
 import threading
 import time
+import tomllib
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,50 +18,109 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     BUNDLE_DIR = Path(sys._MEIPASS)
+    RUNTIME_DIR = Path(sys.executable).resolve().parent
 else:
     BUNDLE_DIR = Path(__file__).resolve().parent
-RUNTIME_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else BUNDLE_DIR
-HTML_DIR = Path(os.getenv("HTML_DIR", str(BUNDLE_DIR / "html")))
-DATA_DIR = Path(os.getenv("DATA_DIR", str(RUNTIME_DIR / "data")))
+    RUNTIME_DIR = (
+        BUNDLE_DIR
+        if (BUNDLE_DIR / "config.toml").exists()
+        else (BUNDLE_DIR.parent if BUNDLE_DIR.name == "app" else BUNDLE_DIR)
+    )
+
+
+CONFIG_FILE = Path(os.getenv("CONFIG_FILE", str(RUNTIME_DIR / "config.toml"))).expanduser()
+
+
+def _load_config(path):
+    if not path.exists():
+        return {}
+    with path.open("rb") as handle:
+        config = tomllib.load(handle)
+    if not isinstance(config, dict):
+        raise ValueError("config.toml must contain a TOML table")
+    return config
+
+
+CONFIG = _load_config(CONFIG_FILE)
+
+
+def _config_value(section, key, default=None, env_name=None):
+    if env_name:
+        env_value = os.getenv(env_name)
+        if env_value is not None:
+            return env_value
+    values = CONFIG.get(section, {})
+    if isinstance(values, dict) and key in values:
+        return values[key]
+    return default
+
+
+def _config_text(section, key, default="", env_name=None):
+    value = _config_value(section, key, default, env_name)
+    return str(value).strip() if value is not None else ""
+
+
+def _config_bool(section, key, default=False, env_name=None):
+    value = _config_value(section, key, default, env_name)
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _config_int(section, key, default, env_name=None):
+    return int(_config_value(section, key, default, env_name))
+
+
+def _config_float(section, key, default, env_name=None):
+    return float(_config_value(section, key, default, env_name))
+
+
+HTML_DIR = Path(_config_text("paths", "html_dir", str(BUNDLE_DIR / "html"), "HTML_DIR"))
+DATA_DIR = Path(_config_text("paths", "data_dir", str(RUNTIME_DIR / "data"), "DATA_DIR"))
 CACHE_FILE = DATA_DIR / "status.json"
-HISTORY_DB = Path(os.getenv("HISTORY_DB", str(DATA_DIR / "history.db")))
-HISTORY_RETENTION_DAYS = max(1, int(os.getenv("HISTORY_RETENTION_DAYS", "90")))
-PORT = int(os.getenv("PORT", "80"))
-SUB2API_BASE_URL = os.getenv("SUB2API_BASE_URL", "").rstrip("/")
-MAIN_ACCOUNT_ID = os.getenv("MAIN_ACCOUNT_ID", "571")
-SPARK_ACCOUNT_ID = os.getenv("SPARK_ACCOUNT_ID", "576")
-SUB2API_ADMIN_KEY = os.getenv("SUB2API_ADMIN_KEY", "").strip()
-FAST_INTERVAL_SECONDS = max(5, int(os.getenv("FAST_INTERVAL_SECONDS", "60")))
+HISTORY_DB = Path(_config_text("paths", "history_db", str(DATA_DIR / "history.db"), "HISTORY_DB"))
+HISTORY_RETENTION_DAYS = max(1, _config_int("history", "retention_days", 90, "HISTORY_RETENTION_DAYS"))
+PORT = _config_int("server", "port", 80, "PORT")
+SUB2API_BASE_URL = _config_text("sub2api", "base_url", "", "SUB2API_BASE_URL").rstrip("/")
+MAIN_ACCOUNT_ID = _config_text("sub2api", "main_account_id", "571", "MAIN_ACCOUNT_ID")
+SPARK_ACCOUNT_ID = _config_text("sub2api", "spark_account_id", "576", "SPARK_ACCOUNT_ID")
+SUB2API_ADMIN_KEY = _config_text("sub2api", "admin_key", "", "SUB2API_ADMIN_KEY")
+FAST_INTERVAL_SECONDS = max(5, _config_int("sampling", "fast_interval_seconds", 60, "FAST_INTERVAL_SECONDS"))
 NORMAL_INTERVAL_SECONDS = max(
-    5, int(os.getenv("NORMAL_INTERVAL_SECONDS", os.getenv("INTERVAL_SECONDS", "300")))
+    5,
+    _config_int(
+        "sampling",
+        "normal_interval_seconds",
+        _config_value("sampling", "interval_seconds", 300, "INTERVAL_SECONDS"),
+        "NORMAL_INTERVAL_SECONDS",
+    ),
 )
 FAST_USAGE_AMOUNT_THRESHOLD = max(
-    0.0, float(os.getenv("FAST_USAGE_AMOUNT_THRESHOLD", "5"))
+    0.0,
+    _config_float("sampling", "fast_usage_amount_threshold", 5, "FAST_USAGE_AMOUNT_THRESHOLD"),
 )
 FAST_USAGE_REQUEST_THRESHOLD = max(
-    0, int(os.getenv("FAST_USAGE_REQUEST_THRESHOLD", "20"))
+    0,
+    _config_int("sampling", "fast_usage_request_threshold", 20, "FAST_USAGE_REQUEST_THRESHOLD"),
 )
 FAST_HOLD_SECONDS = max(
-    NORMAL_INTERVAL_SECONDS, int(os.getenv("FAST_HOLD_SECONDS", "900"))
+    NORMAL_INTERVAL_SECONDS,
+    _config_int("sampling", "fast_hold_seconds", 900, "FAST_HOLD_SECONDS"),
 )
-REQUEST_TIMEOUT = max(5, int(os.getenv("REQUEST_TIMEOUT", "45")))
-BARK_ENABLED = os.getenv("BARK_ENABLED", "false").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
-BARK_URL = os.getenv("BARK_URL", "").strip()
-BARK_URL_FILE = Path(os.getenv("BARK_URL_FILE", "/run/secrets/bark_url"))
-BARK_REQUEST_TIMEOUT = max(3, int(os.getenv("BARK_REQUEST_TIMEOUT", "10")))
-FRAME_ANCESTORS = os.getenv("FRAME_ANCESTORS", "'self'")
+REQUEST_TIMEOUT = max(5, _config_int("server", "request_timeout", 45, "REQUEST_TIMEOUT"))
+BARK_ENABLED = _config_bool("bark", "enabled", False, "BARK_ENABLED")
+BARK_URL = _config_text("bark", "url", "", "BARK_URL")
+BARK_URL_FILE = Path(_config_text("bark", "url_file", "/run/secrets/bark_url", "BARK_URL_FILE"))
+BARK_REQUEST_TIMEOUT = max(3, _config_int("bark", "request_timeout", 10, "BARK_REQUEST_TIMEOUT"))
+_frame_ancestors = _config_value("server", "frame_ancestors", "'self'", "FRAME_ANCESTORS")
+FRAME_ANCESTORS = " ".join(_frame_ancestors) if isinstance(_frame_ancestors, list) else str(_frame_ancestors)
 SUB2API_ADMIN_KEY_FILE = Path(
-    os.getenv("SUB2API_ADMIN_KEY_FILE", "/run/secrets/sub2api_admin_key")
+    _config_text("sub2api", "admin_key_file", "/run/secrets/sub2api_admin_key", "SUB2API_ADMIN_KEY_FILE")
 )
 
 
 def source_url(env_name, suffix):
-    configured = os.getenv(env_name, "").strip()
+    configured = _config_text("sub2api", env_name.lower(), "", env_name)
     return configured or (f"{SUB2API_BASE_URL}{suffix}" if SUB2API_BASE_URL else "")
 
 
@@ -300,6 +360,19 @@ def read_sub2api_admin_key():
     if not key:
         raise RuntimeError("sub2api admin key secret is empty")
     return key
+
+
+def validate_runtime_config():
+    missing = []
+    if not SUB2API_BASE_URL:
+        missing.append("sub2api.base_url")
+    try:
+        read_sub2api_admin_key()
+    except RuntimeError:
+        missing.append("sub2api.admin_key or sub2api.admin_key_file")
+    if missing:
+        joined = ", ".join(missing)
+        raise RuntimeError(f"missing required configuration: {joined} (config file: {CONFIG_FILE})")
 
 
 def fetch_json(name, url):
@@ -1182,6 +1255,11 @@ def load_cache():
 
 
 def main():
+    try:
+        validate_runtime_config()
+    except RuntimeError as exc:
+        print(f"configuration error: {exc}", file=sys.stderr, flush=True)
+        raise SystemExit(2)
     load_cache()
     try:
         send_bark_startup_notification()

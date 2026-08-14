@@ -1,0 +1,39 @@
+# Copy this file to config.toml and edit it. Keep config.toml private.
+
+[server]
+# Docker listens on port 80 inside the container. A standalone binary can use 8320.
+port = 80
+request_timeout = 45
+# Origins allowed to embed the page in an iframe. Use a TOML string array.
+frame_ancestors = ["'self'"]
+
+[sub2api]
+# Required. Use a URL reachable from the monitor process/container.
+base_url = ""
+# Required unless admin_key_file contains the key.
+admin_key = ""
+admin_key_file = "/run/secrets/sub2api_admin_key"
+main_account_id = "571"
+spark_account_id = "576"
+# Optional complete URL overrides for non-standard Sub2API routes.
+quota_url = ""
+usage_url = ""
+spark_quota_url = ""
+spark_usage_url = ""
+
+[bark]
+enabled = false
+# Required when enabled unless url_file contains the Bark endpoint.
+url = ""
+url_file = "/run/secrets/bark_url"
+request_timeout = 10
+
+[sampling]
+fast_interval_seconds = 60
+normal_interval_seconds = 300
+fast_usage_amount_threshold = 5
+fast_usage_request_threshold = 20
+fast_hold_seconds = 900
+
+[history]
+retention_days = 90

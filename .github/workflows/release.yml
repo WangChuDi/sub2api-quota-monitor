@@ -104,11 +104,14 @@ jobs:
     needs: [binary, docker]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: binary-*
           path: release-assets
           merge-multiple: true
+      - name: Include configuration template
+        run: cp config.example.toml release-assets/config.example.toml
       - name: Generate checksums
         working-directory: release-assets
         run: sha256sum * > SHA256SUMS
