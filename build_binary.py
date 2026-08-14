@@ -16,7 +16,7 @@ subprocess.run(
         "--clean",
         "--onefile",
         "--name",
-        "newapi-about-monitor",
+        "sub2api-quota-monitor",
         "--add-data",
         add_data,
         str(ROOT / "app" / "server.py"),

@@ -378,7 +378,7 @@ def validate_runtime_config():
 def fetch_json(name, url):
     headers = {
         "Accept": "application/json",
-        "User-Agent": "newapi-about-monitor/2.1",
+        "User-Agent": "sub2api-quota-monitor/2.1",
     }
     headers["x-api-key"] = read_sub2api_admin_key()
     request = urllib.request.Request(

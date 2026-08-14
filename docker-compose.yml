@@ -1,7 +1,7 @@
 services:
-  newapi-about-monitor:
-    image: ghcr.io/wangchudi/newapi-about-monitor:latest
-    container_name: newapi-about-monitor
+  sub2api-quota-monitor:
+    image: ghcr.io/wangchudi/sub2api-quota-monitor:latest
+    container_name: sub2api-quota-monitor
     restart: unless-stopped
     ports:
       - "8320:80"

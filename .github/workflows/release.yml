@@ -33,13 +33,13 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-amd64
-            output: newapi-about-monitor-linux-amd64
+            output: sub2api-quota-monitor-linux-amd64
           - os: windows-latest
             name: windows-amd64
-            output: newapi-about-monitor-windows-amd64.exe
+            output: sub2api-quota-monitor-windows-amd64.exe
           - os: macos-14
             name: macos-amd64
-            output: newapi-about-monitor-macos-amd64
+            output: sub2api-quota-monitor-macos-amd64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -54,9 +54,9 @@ jobs:
         shell: bash
         run: |
           if [ "${RUNNER_OS}" = "Windows" ]; then
-            cp dist/newapi-about-monitor.exe "dist/${{ matrix.output }}"
+            cp dist/sub2api-quota-monitor.exe "dist/${{ matrix.output }}"
           else
-            cp dist/newapi-about-monitor "dist/${{ matrix.output }}"
+            cp dist/sub2api-quota-monitor "dist/${{ matrix.output }}"
           fi
       - uses: actions/upload-artifact@v4
         with:
@@ -76,7 +76,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/newapi-about-monitor
+          images: ghcr.io/${{ github.repository_owner }}/sub2api-quota-monitor
           tags: |
             type=ref,event=tag
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}

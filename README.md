@@ -16,7 +16,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Compose 使用已发布的镜像：`ghcr.io/wangchudi/newapi-about-monitor:latest`。仓库和镜像目前是私有的，拉取镜像需要具有 `read:packages` 权限的 GitHub PAT。页面默认地址为 `http://127.0.0.1:8320/`，历史数据库位于 `./data/history.db`。
+Compose 使用已发布的镜像：`ghcr.io/wangchudi/sub2api-quota-monitor:latest`。仓库和镜像目前是私有的，拉取镜像需要具有 `read:packages` 权限的 GitHub PAT。页面默认地址为 `http://127.0.0.1:8320/`，历史数据库位于 `./data/history.db`。
 
 #### `config.toml` 配置
 
@@ -57,7 +57,7 @@ Linux/macOS：
 ```sh
 cp config.example.toml config.toml
 # 编辑 config.toml；独立运行时可将 [server].port 改为 8320。
-./newapi-about-monitor
+./sub2api-quota-monitor
 ```
 
 Windows PowerShell：
@@ -65,7 +65,7 @@ Windows PowerShell：
 ```powershell
 Copy-Item config.example.toml config.toml
 # 编辑 config.toml 后启动
-./newapi-about-monitor.exe
+./sub2api-quota-monitor.exe
 ```
 
 也可以通过 `CONFIG_FILE` 环境变量指定其他 TOML 路径，或由 systemd、Unraid、Windows 服务直接管理该配置文件。
@@ -75,7 +75,7 @@ Copy-Item config.example.toml config.toml
 
 ### GitHub Actions 与发布
 
-- 推送匹配 `v*` 的标签会运行测试、构建多平台二进制，并将多架构镜像推送到 `ghcr.io/wangchudi/newapi-about-monitor`。
+- 推送匹配 `v*` 的标签会运行测试、构建多平台二进制，并将多架构镜像推送到 `ghcr.io/wangchudi/sub2api-quota-monitor`。
 - 同一个标签会创建 GitHub Release，附带二进制和 `SHA256SUMS`。
 - `workflow_dispatch` 可运行检查和构建，但不会创建 Release 或推送镜像。
 
@@ -123,7 +123,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Compose uses the published image `ghcr.io/wangchudi/newapi-about-monitor:latest`. The repository and image are currently private, so pulling the image requires a GitHub PAT with `read:packages`. The page is available at `http://127.0.0.1:8320/`; persistent history is stored in `./data/history.db`.
+Compose uses the published image `ghcr.io/wangchudi/sub2api-quota-monitor:latest`. The repository and image are currently private, so pulling the image requires a GitHub PAT with `read:packages`. The page is available at `http://127.0.0.1:8320/`; persistent history is stored in `./data/history.db`.
 
 #### `config.toml` configuration
 
@@ -164,7 +164,7 @@ On Linux/macOS:
 ```sh
 cp config.example.toml config.toml
 # Edit config.toml; for a standalone process you may set [server].port to 8320.
-./newapi-about-monitor
+./sub2api-quota-monitor
 ```
 
 On Windows PowerShell:
@@ -172,7 +172,7 @@ On Windows PowerShell:
 ```powershell
 Copy-Item config.example.toml config.toml
 # Edit config.toml, then start the binary
-.\newapi-about-monitor.exe
+.\sub2api-quota-monitor.exe
 ```
 
 `CONFIG_FILE` can point to an alternate TOML file when needed. systemd, Unraid, Windows Services, and other secret managers can also manage the file directly.
