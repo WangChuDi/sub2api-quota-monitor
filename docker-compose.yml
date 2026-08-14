@@ -1,0 +1,31 @@
+services:
+  newapi-about-monitor:
+    image: ghcr.io/${GITHUB_OWNER:-your-github-user}/newapi-about-monitor:latest
+    container_name: newapi-about-monitor
+    restart: unless-stopped
+    environment:
+      SUB2API_BASE_URL: ${SUB2API_BASE_URL:?set SUB2API_BASE_URL}
+      SUB2API_ADMIN_KEY: ${SUB2API_ADMIN_KEY:?set SUB2API_ADMIN_KEY}
+      MAIN_ACCOUNT_ID: ${MAIN_ACCOUNT_ID:-571}
+      SPARK_ACCOUNT_ID: ${SPARK_ACCOUNT_ID:-576}
+      BARK_ENABLED: ${BARK_ENABLED:-false}
+      BARK_URL: ${BARK_URL:-}
+      FRAME_ANCESTORS: ${FRAME_ANCESTORS:-"'self'"}
+      FAST_INTERVAL_SECONDS: ${FAST_INTERVAL_SECONDS:-60}
+      NORMAL_INTERVAL_SECONDS: ${NORMAL_INTERVAL_SECONDS:-300}
+      FAST_USAGE_AMOUNT_THRESHOLD: ${FAST_USAGE_AMOUNT_THRESHOLD:-5}
+      FAST_USAGE_REQUEST_THRESHOLD: ${FAST_USAGE_REQUEST_THRESHOLD:-20}
+      FAST_HOLD_SECONDS: ${FAST_HOLD_SECONDS:-900}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-45}
+      BARK_REQUEST_TIMEOUT: ${BARK_REQUEST_TIMEOUT:-10}
+      HISTORY_RETENTION_DAYS: ${HISTORY_RETENTION_DAYS:-90}
+    ports:
+      - "${PORT:-8320}:80"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
