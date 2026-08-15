@@ -34,6 +34,20 @@ class MonitorTests(unittest.TestCase):
         finally:
             about_server.SUB2API_BASE_URL = old
 
+    def test_validate_accepts_legacy_endpoint_urls(self):
+        old_base = about_server.SUB2API_BASE_URL
+        old_sources = about_server.SOURCES
+        old_key_reader = about_server.read_sub2api_admin_key
+        try:
+            about_server.SUB2API_BASE_URL = ""
+            about_server.SOURCES = {name: "https://sub2api.example.test/" + name for name in old_sources}
+            about_server.read_sub2api_admin_key = lambda: "configured"
+            about_server.validate_runtime_config()
+        finally:
+            about_server.SUB2API_BASE_URL = old_base
+            about_server.SOURCES = old_sources
+            about_server.read_sub2api_admin_key = old_key_reader
+
     def test_amount_rate_ignores_non_positive_changes(self):
         rows = [
             {"generated_at": "2026-01-01T00:00:00Z", "main": {"amount": 10}},
@@ -43,6 +57,29 @@ class MonitorTests(unittest.TestCase):
         rates = about_server._amount_rate_samples(rows)
         self.assertTrue(rates)
         self.assertTrue(all(rate > 0 for rate in rates))
+
+    def test_smoothing_keeps_boundary_values(self):
+        series = [
+            {"x": 0, "y": 1},
+            {"x": 1, "y": 3},
+            {"x": 2, "y": 5},
+            {"x": 3, "y": 7},
+        ]
+        smoothed = about_server._smooth_regression_series(series)
+        self.assertEqual(smoothed[0]["y"], 1)
+        self.assertEqual(smoothed[-1]["y"], 7)
+
+    def test_coalesce_change_points_merges_small_local_slope_change(self):
+        series = [
+            {"x": index, "y": (index if index < 5 else 5) + (index - 5) * (1 if index < 10 else 1.1)}
+            for index in range(15)
+        ]
+        changes = [
+            {"index": 5, "split": 5, "relative_change": 1.0, "p_value": 0.01},
+            {"index": 10, "split": 10, "relative_change": 0.1, "p_value": 0.02},
+        ]
+        merged = about_server._coalesce_change_points(series, changes)
+        self.assertEqual([item["index"] for item in merged], [5])
 
     def test_bark_change_is_deduplicated(self):
         old_endpoint = about_server._bark_endpoint
@@ -67,11 +104,22 @@ class MonitorTests(unittest.TestCase):
                     "relative_change": 0.2,
                     "slope_before": 10,
                     "slope_after": 12,
-                }
+                },
+                {
+                    "generated_at": "2026-01-01T02:00:00Z",
+                    "percent": 35,
+                    "amount": 140,
+                    "relative_change": 0.3,
+                    "slope_before": 12,
+                    "slope_after": 8,
+                },
             ]
+            cycle["change_marker"] = cycle["change_markers"][-1]
             about_server.notify_slope_changes([cycle])
             about_server.notify_slope_changes([cycle])
             self.assertEqual(len(sent), 1)
+            self.assertIn("已用 35%", sent[0][1])
+            self.assertNotIn("已用 20%", sent[0][1])
         finally:
             about_server._bark_endpoint = old_endpoint
             about_server._send_bark = old_sender

@@ -364,8 +364,10 @@ def read_sub2api_admin_key():
 
 def validate_runtime_config():
     missing = []
-    if not SUB2API_BASE_URL:
-        missing.append("sub2api.base_url")
+    # Keep deployments that predate config.toml working when all four
+    # endpoint URLs are supplied through the legacy environment variables.
+    if not SUB2API_BASE_URL and not all(SOURCES.values()):
+        missing.append("sub2api.base_url or complete endpoint URLs")
     try:
         read_sub2api_admin_key()
     except RuntimeError:
@@ -665,13 +667,19 @@ def _smooth_regression_series(series, window=3):
     half = window // 2
     smoothed = []
     for index, item in enumerate(series):
-        start = max(0, index - half)
-        end = min(len(series), index + half + 1)
-        neighborhood = [row["y"] for row in series[start:end]]
+        # Keep boundary observations intact; a one-sided median would move
+        # the first and last points and bias the fitted line.
+        if index < half or index >= len(series) - half:
+            smoothed_value = item["y"]
+        else:
+            start = index - half
+            end = index + half + 1
+            neighborhood = [row["y"] for row in series[start:end]]
+            smoothed_value = _median(neighborhood)
         smoothed.append(
             {
                 "x": item["x"],
-                "y": _median(neighborhood),
+                "y": smoothed_value,
                 "raw_y": item["y"],
                 "generated_at": item.get("generated_at"),
             }
@@ -714,7 +722,63 @@ def _normal_two_sided_p(z_value):
     return math.erfc(abs(z_value) / math.sqrt(2.0))
 
 
-def _best_change_point(series, relative_threshold=0.10):
+CHANGE_DETECTION_RELATIVE_THRESHOLD = 0.20
+
+
+def _relative_slope_change(left_fit, right_fit):
+    if not left_fit or not right_fit:
+        return None
+    left_slope = left_fit.get("slope")
+    right_slope = right_fit.get("slope")
+    if left_slope is None or right_slope is None:
+        return None
+    difference = abs(right_slope - left_slope)
+    scale = max(abs(left_slope), abs(right_slope), 1e-9)
+    return difference / scale
+
+
+def _coalesce_change_points(series, changes, relative_threshold=CHANGE_DETECTION_RELATIVE_THRESHOLD):
+    """Merge adjacent breaks when their local slopes are effectively the same."""
+    if not changes:
+        return []
+    boundaries = [0] + sorted({item["index"] for item in changes}) + [len(series)]
+    source_by_index = {item["index"]: item for item in changes}
+
+    while len(boundaries) > 2:
+        fits = [
+            _regression_fit(series[start:end])
+            for start, end in zip(boundaries, boundaries[1:])
+        ]
+        merge_candidate = None
+        for fit_index, boundary in enumerate(boundaries[1:-1], start=1):
+            relative_change = _relative_slope_change(fits[fit_index - 1], fits[fit_index])
+            if relative_change is None or relative_change >= relative_threshold:
+                continue
+            if merge_candidate is None or relative_change < merge_candidate[0]:
+                merge_candidate = (relative_change, fit_index, boundary)
+        if merge_candidate is None:
+            break
+        boundaries.pop(merge_candidate[1])
+
+    fits = [
+        _regression_fit(series[start:end])
+        for start, end in zip(boundaries, boundaries[1:])
+    ]
+    merged = []
+    for fit_index, boundary in enumerate(boundaries[1:-1], start=1):
+        candidate = dict(source_by_index.get(boundary, {}))
+        candidate["split"] = boundary
+        candidate["index"] = boundary
+        candidate["left"] = fits[fit_index - 1]
+        candidate["right"] = fits[fit_index]
+        candidate["relative_change"] = _relative_slope_change(
+            fits[fit_index - 1], fits[fit_index]
+        )
+        merged.append(candidate)
+    return merged
+
+
+def _best_change_point(series, relative_threshold=CHANGE_DETECTION_RELATIVE_THRESHOLD):
     """Find one statistically significant slope shift in amount vs. percent."""
     minimum_points = 5
     if len(series) < minimum_points * 2:
@@ -769,7 +833,8 @@ def _detect_change_points(series, max_changes=4):
         walk(segment[split:], offset + split)
 
     walk(series, 0)
-    return sorted(changes, key=lambda item: item["index"])
+    ordered = sorted(changes, key=lambda item: item["index"])
+    return _coalesce_change_points(series, ordered)
 
 
 def _fit_line(fit, series):
@@ -1065,10 +1130,14 @@ def notify_slope_changes(cycles):
     if not _bark_endpoint() or not cycles:
         return
     cycle = cycles[-1]
+    latest_marker = cycle.get("change_marker")
+    if not isinstance(latest_marker, dict):
+        markers = cycle.get("change_markers") or []
+        latest_marker = markers[-1] if markers else None
     current = {}
-    for marker in cycle.get("change_markers") or []:
-        fingerprint = _bark_fingerprint(cycle, marker)
-        current[fingerprint] = marker
+    if latest_marker:
+        fingerprint = _bark_fingerprint(cycle, latest_marker)
+        current[fingerprint] = latest_marker
     if bark_previous_fingerprints is None:
         bark_previous_fingerprints = set(current)
         return
