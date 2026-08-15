@@ -723,6 +723,7 @@ def _normal_two_sided_p(z_value):
 
 
 CHANGE_DETECTION_RELATIVE_THRESHOLD = 0.20
+MAX_CHANGE_POINTS = 5
 
 
 def _relative_slope_change(left_fit, right_fit):
@@ -816,8 +817,8 @@ def _best_change_point(series, relative_threshold=CHANGE_DETECTION_RELATIVE_THRE
     return best
 
 
-def _detect_change_points(series, max_changes=4):
-    """Recursively find multiple significant slope shifts."""
+def _detect_change_points(series, max_changes=MAX_CHANGE_POINTS):
+    """Recursively find significant slope shifts before local coalescing."""
     changes = []
 
     def walk(segment, offset):
