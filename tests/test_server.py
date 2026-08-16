@@ -69,6 +69,19 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(smoothed[0]["y"], 1)
         self.assertEqual(smoothed[-1]["y"], 7)
 
+    def test_latest_platform_summary_uses_last_two_buckets(self):
+        summary = about_server._latest_platform_summary(
+            [
+                {"x": 86, "y": 700, "generated_at": "2026-01-01T00:00:00Z"},
+                {"x": 88, "y": 720, "generated_at": "2026-01-01T00:05:00Z"},
+                {"x": 89, "y": 735, "generated_at": "2026-01-01T00:10:00Z"},
+            ]
+        )
+        self.assertEqual([item["percent"] for item in summary["latest_platforms"]], [88, 89])
+        self.assertEqual(summary["latest_platform_delta_amount"], 15)
+        self.assertEqual(summary["latest_platform_delta_percent"], 1)
+        self.assertEqual(summary["latest_platform_amount_per_percent"], 15)
+
     def test_coalesce_change_points_merges_small_local_slope_change(self):
         series = [
             {"x": index, "y": (index if index < 5 else 5) + (index - 5) * (1 if index < 10 else 1.1)}

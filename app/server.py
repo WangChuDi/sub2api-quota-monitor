@@ -906,6 +906,40 @@ def _amount_rate_samples(rows, recent_only=False):
     return samples
 
 
+def _latest_platform_summary(regression_series):
+    """Return the last two percentage buckets and their amount delta."""
+    platforms = [
+        {
+            "percent": item.get("x"),
+            "amount": item.get("y"),
+            "generated_at": item.get("generated_at"),
+        }
+        for item in regression_series[-2:]
+    ]
+    previous = platforms[-2] if len(platforms) >= 2 else None
+    current = platforms[-1] if platforms else None
+    delta_amount = None
+    delta_percent = None
+    amount_per_percent = None
+    if previous and current:
+        previous_amount = number(previous.get("amount"))
+        current_amount = number(current.get("amount"))
+        previous_percent = number(previous.get("percent"))
+        current_percent = number(current.get("percent"))
+        if previous_amount is not None and current_amount is not None:
+            delta_amount = current_amount - previous_amount
+        if previous_percent is not None and current_percent is not None:
+            delta_percent = current_percent - previous_percent
+        if delta_amount is not None and delta_percent and delta_percent > 0:
+            amount_per_percent = delta_amount / delta_percent
+    return {
+        "latest_platforms": platforms,
+        "latest_platform_delta_amount": delta_amount,
+        "latest_platform_delta_percent": delta_percent,
+        "latest_platform_amount_per_percent": amount_per_percent,
+    }
+
+
 def _cycle_summary(rows, index, total):
     first = rows[0]
     latest = rows[-1]
@@ -920,6 +954,7 @@ def _cycle_summary(rows, index, total):
     peak_percent = max(valid_percent) if valid_percent else None
     peak_amount = max(valid_amount) if valid_amount else None
     raw_regression_series = _regression_series(rows)
+    platform_summary = _latest_platform_summary(raw_regression_series)
     regression_series = _smooth_regression_series(raw_regression_series)
     full_fit = _regression_fit(regression_series)
     change_points = _detect_change_points(regression_series)
@@ -999,6 +1034,7 @@ def _cycle_summary(rows, index, total):
         "reset_at": (latest.get("main") or {}).get("resets_at"),
         "current_quota_percent": latest_percent,
         "current_amount": latest_amount,
+        **platform_summary,
         "expected_available_percent": expected_available_percent,
         "expected_available_amount": expected_available_amount,
         "expected_remaining_amount": expected_remaining_amount,
