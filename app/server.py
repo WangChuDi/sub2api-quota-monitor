@@ -641,6 +641,9 @@ def _regression_series(rows):
             {
                 "x": bucket_percent,
                 "y": _median(bucket),
+                "amount_min": min(bucket),
+                "amount_max": max(bucket),
+                "sample_count": len(bucket),
                 "generated_at": bucket_row.get("generated_at") if bucket_row else None,
             }
         )
@@ -912,6 +915,9 @@ def _latest_platform_summary(regression_series):
         {
             "percent": item.get("x"),
             "amount": item.get("y"),
+            "amount_min": item.get("amount_min", item.get("y")),
+            "amount_max": item.get("amount_max", item.get("y")),
+            "sample_count": item.get("sample_count"),
             "generated_at": item.get("generated_at"),
         }
         for item in regression_series[-2:]

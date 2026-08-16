@@ -72,15 +72,28 @@ class MonitorTests(unittest.TestCase):
     def test_latest_platform_summary_uses_last_two_buckets(self):
         summary = about_server._latest_platform_summary(
             [
-                {"x": 86, "y": 700, "generated_at": "2026-01-01T00:00:00Z"},
-                {"x": 88, "y": 720, "generated_at": "2026-01-01T00:05:00Z"},
-                {"x": 89, "y": 735, "generated_at": "2026-01-01T00:10:00Z"},
+                {"x": 86, "y": 700, "amount_min": 699, "amount_max": 701, "generated_at": "2026-01-01T00:00:00Z"},
+                {"x": 88, "y": 720, "amount_min": 718, "amount_max": 722, "generated_at": "2026-01-01T00:05:00Z"},
+                {"x": 89, "y": 735, "amount_min": 733, "amount_max": 737, "generated_at": "2026-01-01T00:10:00Z"},
             ]
         )
         self.assertEqual([item["percent"] for item in summary["latest_platforms"]], [88, 89])
+        self.assertEqual(summary["latest_platforms"][0]["amount_min"], 718)
+        self.assertEqual(summary["latest_platforms"][1]["amount_max"], 737)
         self.assertEqual(summary["latest_platform_delta_amount"], 15)
         self.assertEqual(summary["latest_platform_delta_percent"], 1)
         self.assertEqual(summary["latest_platform_amount_per_percent"], 15)
+
+    def test_regression_series_keeps_platform_range(self):
+        series = about_server._regression_series(
+            [
+                {"generated_at": "2026-01-01T00:00:00Z", "main": {"quota_percent": 88, "amount": 801}},
+                {"generated_at": "2026-01-01T00:01:00Z", "main": {"quota_percent": 88, "amount": 803}},
+            ]
+        )
+        self.assertEqual(series[0]["amount_min"], 801)
+        self.assertEqual(series[0]["amount_max"], 803)
+        self.assertEqual(series[0]["sample_count"], 2)
 
     def test_coalesce_change_points_merges_small_local_slope_change(self):
         series = [
