@@ -80,6 +80,8 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual([item["percent"] for item in summary["latest_platforms"]], [88, 89])
         self.assertEqual(summary["latest_platforms"][0]["amount_min"], 718)
         self.assertEqual(summary["latest_platforms"][1]["amount_max"], 737)
+        self.assertEqual(summary["latest_platforms"][0]["amount_used"], 4)
+        self.assertEqual(summary["latest_platforms"][1]["amount_used"], 4)
         self.assertEqual(summary["latest_platform_delta_amount"], 15)
         self.assertEqual(summary["latest_platform_delta_percent"], 1)
         self.assertEqual(summary["latest_platform_amount_per_percent"], 15)

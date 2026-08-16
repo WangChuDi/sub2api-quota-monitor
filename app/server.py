@@ -920,8 +920,16 @@ def _latest_platform_summary(regression_series):
             "sample_count": item.get("sample_count"),
             "generated_at": item.get("generated_at"),
         }
-        for item in regression_series[-2:]
+    for item in regression_series[-2:]
     ]
+    for platform in platforms:
+        amount_min = number(platform.get("amount_min"))
+        amount_max = number(platform.get("amount_max"))
+        platform["amount_used"] = (
+            amount_max - amount_min
+            if amount_min is not None and amount_max is not None
+            else None
+        )
     previous = platforms[-2] if len(platforms) >= 2 else None
     current = platforms[-1] if platforms else None
     delta_amount = None
